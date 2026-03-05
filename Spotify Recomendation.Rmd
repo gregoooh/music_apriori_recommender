@@ -1,0 +1,165 @@
+---
+title: "Spotify Recommender System"
+output: github_document
+
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyverse)
+library(janitor)
+library(readxl)
+library(arules)
+library(recommenderlab)
+library(RColorBrewer)
+library(tidygraph)
+library(visNetwork)
+library(webshot2)
+```
+
+# Introduction
+
+Recommendation Systems are found in many aspects of our daily lives, using the Apriori Algorithm and Market Basket Analysis, we create a Spotify Song Recommender Dashboard. This project aims to discover clusters of songs that often appear together as well as generating Association rules for future preferences. 
+
+The data can be found here https://www.kaggle.com/datasets/andrewmvd/spotify-playlists/code.
+
+```{r data,warning=FALSE, message=FALSE}
+data = read_excel("spotify_dataset2.xlsx") %>% select(user_id,`"artistname"`,`"trackname"`,`"playlistname"`) %>%
+  setNames(c("id","artistname","trackname","playlistname"))
+
+head(data)
+```
+
+# Data Preperation
+
+To prepare the data for the Apriori Algorithm, we need to prepare the data into a One-Hot Encoded Dataframe where each row is a unique "playlist" identifier and each column is a unique "song" identifier.
+
+Here are the playlists in descending frequency from the dataset.
+
+```{r data_quality1}
+data %>% group_by(playlistname) %>% summarise(count = n()) %>%  arrange(desc(count))
+```
+
+Here are the song names in descending frequency from the dataset.
+
+```{r data_quality2}
+data %>% group_by(trackname) %>% summarise(count = n()) %>%  arrange(desc(count))
+```
+
+We notice that some playlists and songs share the same names. In this case the trackname "Intro"
+
+```{r data_quality3}
+data %>% filter(trackname == "Intro") %>% head()
+```
+
+Likewise with playlist, lets create a new column for both "User + Playlist" and "Artist + Trackname" as identifiers. We also drop NaN Values preemptively. Additionally, "Starred" and "Liked From Radio" Playlist names will be removed for Apriori association analysis.
+
+```{r data_preparation1}
+apri_data = data %>% drop_na() %>% filter(playlistname != "Liked from Radio", playlistname != "Starred") %>%
+  mutate("basket" = paste(id,playlistname, sep = "_"),
+         "item" = paste(artistname,trackname,sep = "::"))
+head(apri_data)
+```
+
+We will also remove data of songs that appear less than 5 times in the whole dataset
+
+```{r data_preparation2}
+apri_data = apri_data %>% group_by(item) %>% filter(n() >= 5) %>% ungroup()
+```
+
+Here is the final One-Hot Encoded Dataframe where each row is a unique "playlist" identifier and each column is a unique "song" identifier.
+
+```{r data_preparation3}
+input_data = apri_data %>% select(basket,item) %>% distinct()
+apri_matrix = split(input_data$item, input_data$basket) %>% as("transactions") %>%
+  as("binaryRatingMatrix")
+```
+
+To get a sensing of the data, here are the top 20 most frequent songs in this dataset
+```{r support_plot}
+itemFrequencyPlot(apri_matrix@data, topN = 20, type="relative",
+                  col = brewer.pal(8, 'Accent'),
+                  cex.names = 0.5,
+                  main = "Support of most common Songs")
+```
+Looking at the songs listed, we can very much tell that this dataset was collected before 2020 :)
+
+# Apriori Algorithm and Association Rules
+
+Below run the data through the Apriori Algorithm to get our recommender objecet using the "recommederlab" library. From the object, we can extract our associasion rules based on their support,lift and confidence.
+
+Below are the rules with the lowest support of minimum 0.0006 and a confidence of 0.2.
+
+```{r apriori_model}
+apri_rec <- Recommender(apri_matrix, 
+                      method = "AR", 
+                      parameter = list(support = 0.0006,
+                                       confidence = 0.2,
+                                       maxlen = 2))
+rules = getModel(apri_rec)$rule_base %>% as("data.frame") %>% clean_names() %>%
+  arrange((support)) %>% mutate(rules = str_remove_all(rules, "[{}]")) %>%
+  separate(col = rules,
+           into = c("from","to"),
+           sep = " => ") %>% mutate(lhs = from, rhs = to) %>%
+  separate(col = lhs,
+           into = c("from_artist","from_trackname"),
+           sep = "::") %>% select(-from_trackname) %>%
+  separate(col = rhs,
+           into = c("to_artist","to_trackname"),
+           sep = "::") %>% select(-to_trackname)
+head(rules)
+```
+
+Lets test our system by running a song that I currently enjoy. 
+```{r prediction}
+new_playlist_items = c("Paramore::Misery Business")
+
+new_user_data = (colnames(apri_matrix) %in% new_playlist_items) %>% matrix(nrow=1)
+colnames(new_user_data) = colnames(apri_matrix)
+new_user_data = as(new_user_data, "binaryRatingMatrix")
+
+predict(apri_rec, new_user_data, n = 5) %>% as("list")
+```
+Looking at its suggestions I think it has given me rather solid choices :)
+
+# Graphical Illustration
+
+We can also visualise these rules from the Apriori algorithm to construct a graph.
+Lets start with the same artist, Paramore
+```{r filtered_data}
+artist = "Panic! At The Disco"
+rules_filtered = rules %>% filter(from_artist == artist | to_artist == artist)
+```
+
+```{r network_graph}
+nodes = rules_filtered %>% select(from,to) %>% pivot_longer(cols = c(from,to)) %>%
+  select(value) %>% unique() %>% rename(id = value) %>%
+  mutate(id2 = id) %>%
+  separate(col = id2,
+           into = c("group","trackname"),
+           sep = "::") %>% select(-trackname)
+
+edges = rules_filtered %>% select(from,to)
+
+# Create the interactive visualization
+visNetwork(nodes, edges) %>%
+  visGroups(groupname = artist, color = "#1DB954") %>%
+  visEdges(arrows ="to") %>% 
+  visOptions(selectedBy = "group",
+             highlightNearest = TRUE,
+             nodesIdSelection = TRUE) %>%
+  visPhysics(enabled = T,stabilization = T,solver = "forceAtlas2Based") %>%
+  visLayout(randomSeed = 123) %>%
+  visInteraction(dragNodes = T, dragView = T, zoomView = T)
+```
+
+From the graph we notice that Paramore's songs are often in the same playlist as other songs from the Pop Punk genre (Fall Out Boy, MCR etc.)
+
+# Conclusion
+
+Overall, the Apriori Algorithm is a good way to identify frequent itemsets and association rules and in this case how music preferences overlap in real-world listening habits. This project could also be applied to a more pragmatic scenario like retail analytics, where identifying 'frequently bought together' items is essential for personalized product recommendations, optimizing inventory placement, and driving cross-selling strategies.
+
+
+
+
+
