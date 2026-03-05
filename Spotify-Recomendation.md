@@ -223,7 +223,7 @@ Looking at its suggestions I think it has given me rather solid choices
 # Graphical Illustration
 
 We can also visualise these rules from the Apriori algorithm to
-construct a graph. Lets start with the same artist, Paramore
+construct a graph. Lets start with the another artist, Panic! At The Disco
 
 ``` r
 artist = "Panic! At The Disco"
@@ -254,7 +254,7 @@ visNetwork(nodes, edges) %>%
 
 ![](Spotify-Recomendation_files/figure-gfm/network_graph-1.png)<!-- -->
 
-From the graph we notice that Paramore’s songs are often in the same
+From the graph we notice that Panic’s songs are often in the same
 playlist as other songs from the Pop Punk genre (Fall Out Boy, MCR etc.)
 
 # Conclusion
@@ -266,3 +266,4 @@ applied to a more pragmatic scenario like retail analytics, where
 identifying ‘frequently bought together’ items is essential for
 personalized product recommendations, optimizing inventory placement,
 and driving cross-selling strategies.
+
