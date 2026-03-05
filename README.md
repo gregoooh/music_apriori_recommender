@@ -9,7 +9,10 @@ Spotify Song Recommender Dashboard. This project aims to discover
 clusters of songs that often appear together as well as generating
 Association rules for future preferences.
 
-The data can be found here
+The webapp can be found here or you can download it from the repository:
+<https://gregoooh.shinyapps.io/shinyr_dashboard/>.
+
+Additionally, the data can be found here:
 <https://www.kaggle.com/datasets/andrewmvd/spotify-playlists/code>.
 
 ``` r
@@ -266,4 +269,5 @@ applied to a more pragmatic scenario like retail analytics, where
 identifying ‘frequently bought together’ items is essential for
 personalized product recommendations, optimizing inventory placement,
 and driving cross-selling strategies.
+
 
