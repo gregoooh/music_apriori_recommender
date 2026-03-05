@@ -1,0 +1,10 @@
+name: shinyr_dashboard
+title:
+username: gregoooh
+account: gregoooh
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 16822431
+bundleId: 11666317
+url: https://gregoooh.shinyapps.io/shinyr_dashboard/
+version: 1
